@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Function to generate RSA keys if they do not exist
 generate_rsa_keys() {
     if [[ ! -f private_key.pem || ! -f public_key.pem ]]; then
         echo "Generating RSA keys..."
@@ -10,36 +11,37 @@ generate_rsa_keys() {
     fi
 }
 
+# Function to encrypt a symmetric key using the RSA public key
 encrypt_symmetric_key() {
-    # Encrypt the symmetric key using the RSA public key with pkeyutl
     openssl pkeyutl -encrypt -inkey public_key.pem -pubin -in "$1" -out "$2"
 }
 
+# Function to decrypt a symmetric key using the RSA private key
 decrypt_symmetric_key() {
-    # Decrypt the symmetric key using the RSA private key with pkeyutl
     openssl pkeyutl -decrypt -inkey private_key.pem -in "$1" -out "$2"
 }
 
+# Function to AES encrypt a file
 aes_encrypt() {
-    # AES encrypt the file using a password-protected symmetric key
     openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"$1" -in "$2" -out "$3"
 }
 
+# Function to AES decrypt a file
 aes_decrypt() {
-    # AES decrypt the file using a password-protected symmetric key
     openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass pass:"$1" -in "$2" -out "$3"
 }
 
+# Function to ChaCha20 encrypt a file
 chacha_encrypt() {
-    # ChaCha20 encrypt the file using a password-protected symmetric key
     openssl enc -chacha20 -pbkdf2 -salt -pass pass:"$1" -in "$2" -out "$3"
 }
 
+# Function to ChaCha20 decrypt a file
 chacha_decrypt() {
-    # ChaCha20 decrypt the file using a password-protected symmetric key
     openssl enc -d -chacha20 -pbkdf2 -salt -pass pass:"$1" -in "$2" -out "$3"
 }
 
+# Main encryption function
 encrypt() {
     local source_file="$1"
     local output_file="$2"
@@ -53,14 +55,14 @@ encrypt() {
     generate_rsa_keys
 
     # Generate random passwords for AES and ChaCha20 encryption
-    local aes_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 16)
-    local chacha_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 16)
+    local aes_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 32)
+    local chacha_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 32)
 
     # Temporary file paths
-    local symmetric_key="/dev/shm/symmetric_key.$$"
-    local encrypted_key="/dev/shm/encrypted_key.$$"
-    local encrypted_data="/dev/shm/encrypted_data.$$"
-    local chacha_encrypted_data="/dev/shm/chacha_encrypted_data.$$"
+    local symmetric_key=$(mktemp /tmp/symmetric_key.XXXXXX)
+    local encrypted_key=$(mktemp /tmp/encrypted_key.XXXXXX)
+    local encrypted_data=$(mktemp /tmp/encrypted_data.XXXXXX)
+    local chacha_encrypted_data=$(mktemp /tmp/chacha_encrypted_data.XXXXXX)
 
     # Step 1: Generate a symmetric key
     head -c 32 </dev/urandom >"$symmetric_key"
@@ -76,8 +78,8 @@ encrypt() {
     rm -f "$encrypted_data"  # Remove the temporary AES-encrypted file
 
     # Step 5: Combine the encrypted key and ChaCha20-encrypted data into a single output file
-    cat "$encrypted_key" "$chacha_encrypted_data" > " $output_file"
-    rm -f "$encrypted_key" "$chacha_encrypted_data"  # Remove temporary files
+    cat "$encrypted_key" "$chacha_encrypted_data" >"$output_file"
+    rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key"  # Clean up temporary files
 
     echo "Encryption completed: $output_file"
     echo "AES Password: $aes_password"
@@ -86,6 +88,7 @@ encrypt() {
     echo "Public Key Path: $(realpath public_key.pem)"
 }
 
+# Main decryption function
 decrypt() {
     local source_file="$1"
     local output_file="$2"
@@ -103,23 +106,36 @@ decrypt() {
     echo
 
     # Temporary file paths
-    local encrypted_key="/dev/shm/encrypted_key.$$"
-    local chacha_encrypted_data="/dev/shm/chacha_encrypted_data.$$"
-    local symmetric_key="/dev/shm/symmetric_key.$$"
-    local decrypted_data="/dev/shm/decrypted_data.$$"
+    local encrypted_key=$(mktemp /tmp/encrypted_key.XXXXXX)
+    local chacha_encrypted_data=$(mktemp /tmp/chacha_encrypted_data.XXXXXX)
+    local symmetric_key=$(mktemp /tmp/symmetric_key.XXXXXX)
+    local decrypted_data=$(mktemp /tmp/decrypted_data.XXXXXX)
 
     # Step 1: Split the input file into the encrypted key and ChaCha20-encrypted data
-    head -c 256 "$source_file" >"$encrypted_key"  # Assuming a 2048-bit RSA key (256 bytes)
+    head -c 256 "$source_file" >"$encrypted_key"  # Assuming a 4096-bit RSA key (256 bytes)
     tail -c +257 "$source_file" >"$chacha_encrypted_data"
 
     # Step 2: Decrypt the symmetric key using the RSA private key
-    decrypt_symmetric_key "$encrypted_key" "$symmetric_key"
+    if ! decrypt_symmetric_key "$encrypted_key" "$symmetric_key"; then
+        echo "Error: Failed to decrypt the symmetric key."
+        rm -f "$encrypted_key" "$chacha_encrypted_data"
+        exit 1
+    fi
 
     # Step 3: Decrypt the ChaCha20-encrypted data using the password
-    chacha_decrypt "$chacha_password" "$chacha_encrypted_data" "$decrypted_data"
+    if ! chacha_decrypt "$chacha_password" "$chacha_encrypted_data" "$decrypted_data"; then
+        echo "Error: Failed to decrypt the ChaCha20-encrypted data. Please check the ChaCha20 password."
+        echo "Debug: Possible causes include an incorrect password or file corruption."
+        rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
+        exit 1
+    fi
 
     # Step 4: Decrypt the data using the AES password
-    aes_decrypt "$aes_password" "$decrypted_data" "$output_file"
+    if ! aes_decrypt "$aes_password" "$decrypted_data" "$output_file"; then
+        echo "Error: Failed to decrypt the AES-encrypted data. Please check the AES password."
+        rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
+        exit 1
+    fi
 
     # Clean up temporary files
     rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
@@ -127,6 +143,7 @@ decrypt() {
     echo "Decryption completed: $output_file"
 }
 
+# Script entry point
 main() {
     if [[ $# -lt 3 ]]; then
         echo "Usage:"
