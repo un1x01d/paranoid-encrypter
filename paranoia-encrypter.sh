@@ -3,7 +3,7 @@
 generate_rsa_keys() {
     if [[ ! -f private_key.pem || ! -f public_key.pem ]]; then
         echo "Generating RSA keys..."
-        openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:2048
+        openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:4096
         openssl rsa -pubout -in private_key.pem -out public_key.pem
     else
         echo "RSA keys already exist."

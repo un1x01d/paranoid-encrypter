@@ -3,7 +3,7 @@
 This script, `paranoia-encrypter.sh`, provides a way to encrypt and decrypt files using a combination of RSA, AES, and ChaCha20 algorithms. It automatically generates RSA keys if they don't already exist and allows for secure encryption of data with a multi-step process.
 
 ## Features
-- RSA key generation (2048-bit) if not present
+- RSA key generation (4096-bit) if not present
 - Symmetric key encryption using RSA
 - File encryption using AES-256-CBC and ChaCha20 algorithms
 - Secure random password generation for encryption
