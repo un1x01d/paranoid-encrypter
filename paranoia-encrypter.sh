@@ -55,8 +55,8 @@ encrypt() {
     generate_rsa_keys
 
     # Generate random passwords for AES and ChaCha20 encryption
-    local aes_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 32)
-    local chacha_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+-=' </dev/urandom | head -c 32)
+    local aes_password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
+    local chacha_password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)
 
     # Temporary file paths
     local symmetric_key=$(mktemp /tmp/symmetric_key.XXXXXX)
@@ -112,8 +112,8 @@ decrypt() {
     local decrypted_data=$(mktemp /tmp/decrypted_data.XXXXXX)
 
     # Step 1: Split the input file into the encrypted key and ChaCha20-encrypted data
-    head -c 256 "$source_file" >"$encrypted_key"  # Assuming a 4096-bit RSA key (256 bytes)
-    tail -c +257 "$source_file" >"$chacha_encrypted_data"
+    dd if="$source_file" of="$encrypted_key" bs=512 count=1 2>/dev/null # Assuming a 4096-bit RSA key (512 bytes)
+    dd if="$source_file" of="$chacha_encrypted_data" bs=512 skip=1 2>/dev/null
 
     # Step 2: Decrypt the symmetric key using the RSA private key
     if ! decrypt_symmetric_key "$encrypted_key" "$symmetric_key"; then
