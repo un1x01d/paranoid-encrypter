@@ -1,13 +1,20 @@
 #!/bin/bash
 
+# Color definitions
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m' # No color
+
 # Function to generate RSA keys if they do not exist
 generate_rsa_keys() {
     if [[ ! -f private_key.pem || ! -f public_key.pem ]]; then
-        echo "Generating RSA keys..."
-        openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:4096
-        openssl rsa -pubout -in private_key.pem -out public_key.pem
+        echo -e "${YELLOW}Generating RSA keys...${NC}"
+        # Suppress output by redirecting to /dev/null
+        openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:4096 >/dev/null 2>&1
+        openssl rsa -pubout -in private_key.pem -out public_key.pem >/dev/null 2>&1
     else
-        echo "RSA keys already exist."
+        echo -e "${YELLOW}RSA keys already exist.${NC}"
     fi
 }
 
@@ -48,9 +55,12 @@ encrypt() {
 
     # Check if the source file exists
     if [[ ! -f "$source_file" ]]; then
-        echo "Error: Source file '$source_file' does not exist."
+        echo -e "${RED}Error: Source file '$source_file' does not exist.${NC}"
         exit 1
     fi
+
+    echo -e "${GREEN}Encryption started at $(date)${NC}"
+    SECONDS=0  # Start the timer
 
     generate_rsa_keys
 
@@ -65,27 +75,36 @@ encrypt() {
     local chacha_encrypted_data=$(mktemp /tmp/chacha_encrypted_data.XXXXXX)
 
     # Step 1: Generate a symmetric key
+    echo -e "${YELLOW}Generating symmetric key...${NC}"
     head -c 32 </dev/urandom >"$symmetric_key"
 
     # Step 2: Encrypt the symmetric key with RSA
+    echo -e "${YELLOW}Encrypting symmetric key with RSA...${NC}"
     encrypt_symmetric_key "$symmetric_key" "$encrypted_key"
 
     # Step 3: Encrypt the data with AES using the password
+    echo -e "${YELLOW}Encrypting data with AES...${NC}"
     aes_encrypt "$aes_password" "$source_file" "$encrypted_data"
 
     # Step 4: Encrypt the AES-encrypted data with ChaCha20 using the password
+    echo -e "${YELLOW}Encrypting AES-encrypted data with ChaCha20...${NC}"
     chacha_encrypt "$chacha_password" "$encrypted_data" "$chacha_encrypted_data"
     rm -f "$encrypted_data"  # Remove the temporary AES-encrypted file
 
     # Step 5: Combine the encrypted key and ChaCha20-encrypted data into a single output file
+    echo -e "${YELLOW}Combining encrypted key and ChaCha20-encrypted data...${NC}"
     cat "$encrypted_key" "$chacha_encrypted_data" >"$output_file"
     rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key"  # Clean up temporary files
 
-    echo "Encryption completed: $output_file"
-    echo "AES Password: $aes_password"
-    echo "ChaCha20 Password: $chacha_password"
-    echo "Private Key Path: $(realpath private_key.pem)"
-    echo "Public Key Path: $(realpath public_key.pem)"
+    # Display completion message and elapsed time
+    local duration=$SECONDS
+    echo -e "${GREEN}Encryption completed at $(date)${NC}"
+    echo -e "${GREEN}Elapsed time: $(($duration / 60)) minutes and $(($duration % 60)) seconds${NC}"
+    echo -e "${YELLOW}Output file: $output_file${NC}"
+    echo -e "${YELLOW}AES Password: $aes_password${NC}"
+    echo -e "${YELLOW}ChaCha20 Password: $chacha_password${NC}"
+    echo -e "${YELLOW}Private Key Path: $(realpath private_key.pem)${NC}"
+    echo -e "${YELLOW}Public Key Path: $(realpath public_key.pem)${NC}"
 }
 
 # Main decryption function
@@ -95,9 +114,12 @@ decrypt() {
 
     # Check if the encrypted file exists
     if [[ ! -f "$source_file" ]]; then
-        echo "Error: Encrypted file '$source_file' does not exist."
+        echo -e "${RED}Error: Encrypted file '$source_file' does not exist.${NC}"
         exit 1
     fi
+
+    echo -e "${GREEN}Decryption started at $(date)${NC}"
+    SECONDS=0  # Start the timer
 
     # Prompt for the AES and ChaCha20 passwords
     read -sp "Enter AES password: " aes_password
@@ -112,27 +134,31 @@ decrypt() {
     local decrypted_data=$(mktemp /tmp/decrypted_data.XXXXXX)
 
     # Step 1: Split the input file into the encrypted key and ChaCha20-encrypted data
-    dd if="$source_file" of="$encrypted_key" bs=512 count=1 2>/dev/null # Assuming a 4096-bit RSA key (512 bytes)
+    echo -e "${YELLOW}Splitting input file into encrypted key and ChaCha20-encrypted data...${NC}"
+    dd if="$source_file" of="$encrypted_key" bs=512 count=1 2>/dev/null  # Assuming a 4096-bit RSA key (512 bytes)
     dd if="$source_file" of="$chacha_encrypted_data" bs=512 skip=1 2>/dev/null
 
     # Step 2: Decrypt the symmetric key using the RSA private key
+    echo -e "${YELLOW}Decrypting symmetric key with RSA...${NC}"
     if ! decrypt_symmetric_key "$encrypted_key" "$symmetric_key"; then
-        echo "Error: Failed to decrypt the symmetric key."
+        echo -e "${RED}Error: Failed to decrypt the symmetric key.${NC}"
         rm -f "$encrypted_key" "$chacha_encrypted_data"
         exit 1
     fi
 
     # Step 3: Decrypt the ChaCha20-encrypted data using the password
+    echo -e "${YELLOW}Decrypting ChaCha20-encrypted data...${NC}"
     if ! chacha_decrypt "$chacha_password" "$chacha_encrypted_data" "$decrypted_data"; then
-        echo "Error: Failed to decrypt the ChaCha20-encrypted data. Please check the ChaCha20 password."
-        echo "Debug: Possible causes include an incorrect password or file corruption."
+        echo -e "${RED}Error: Failed to decrypt the ChaCha20-encrypted data. Please check the ChaCha20 password.${NC}"
+        echo -e "${RED}Debug: Possible causes include an incorrect password or file corruption.${NC}"
         rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
         exit 1
     fi
 
     # Step 4: Decrypt the data using the AES password
+    echo -e "${YELLOW}Decrypting data with AES...${NC}"
     if ! aes_decrypt "$aes_password" "$decrypted_data" "$output_file"; then
-        echo "Error: Failed to decrypt the AES-encrypted data. Please check the AES password."
+        echo -e "${RED}Error: Failed to decrypt the AES-encrypted data. Please check the AES password.${NC}"
         rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
         exit 1
     fi
@@ -140,13 +166,17 @@ decrypt() {
     # Clean up temporary files
     rm -f "$encrypted_key" "$chacha_encrypted_data" "$symmetric_key" "$decrypted_data"
 
-    echo "Decryption completed: $output_file"
+    # Display completion message and elapsed time
+    local duration=$SECONDS
+    echo -e "${GREEN}Decryption completed at $(date)${NC}"
+    echo -e "${GREEN}Elapsed time: $(($duration / 60)) minutes and $(($duration % 60)) seconds${NC}"
+    echo -e "${YELLOW}Output file: $output_file${NC}"
 }
 
 # Script entry point
 main() {
     if [[ $# -lt 3 ]]; then
-        echo "Usage:"
+        echo -e "${RED}Usage:${NC}"
         echo "  $0 encrypt <source_file> <output_file>"
         echo "  $0 decrypt <source_file> <output_file>"
         exit 1
@@ -164,8 +194,8 @@ main() {
             decrypt "$source_file" "$output_file"
             ;;
         *)
-            echo "Unknown mode: $mode"
-            echo "Usage:"
+            echo -e "${RED}Unknown mode: $mode${NC}"
+            echo -e "${RED}Usage:${NC}"
             echo "  $0 encrypt <source_file> <output_file>"
             echo "  $0 decrypt <source_file> <output_file>"
             exit 1
