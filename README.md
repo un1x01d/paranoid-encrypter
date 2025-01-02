@@ -32,9 +32,9 @@ This Bash script provides a secure method for encrypting and decrypting files us
 
 ### Script Syntax
 
-\`\`\`bash
+```bash
 ./paranoia-encrypter.sh <mode> <source_file> <output_file>
-\`\`\`
+```
 
 ### Modes
 
