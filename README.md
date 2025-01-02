@@ -1,4 +1,4 @@
-# RSA Hybrid Encryption Script
+# Paranoia Encerypter 
 
 This Bash script provides a secure method for encrypting and decrypting files using RSA for key encryption and a combination of AES, ChaCha20, and Camellia symmetric encryption algorithms. It ensures strong security by employing a hybrid encryption mechanism.
 
@@ -33,30 +33,30 @@ This Bash script provides a secure method for encrypting and decrypting files us
 ### Script Syntax
 
 \`\`\`bash
-./script_name.sh <mode> <source_file> <output_file>
+./paranoia-encrypter.sh <mode> <source_file> <output_file>
 \`\`\`
 
 ### Modes
 
 1. **Encryption**:
    - Encrypt a file with the following command:
-     \`\`\`bash
-     ./script_name.sh encrypt <source_file> <output_file>
-     \`\`\`
+     ```bash
+     ./paranoia-encrypter.sh encrypt <source_file> <output_file>
+     ```
    - Example:
-     \`\`\`bash
-     ./script_name.sh encrypt secret.txt secret.enc
-     \`\`\`
+     ```bash
+     ./paranoia-encrypter.sh encrypt secret.txt secret.enc
+     ```
 
 2. **Decryption**:
    - Decrypt a file with the following command:
-     \`\`\`bash
-     ./script_name.sh decrypt <source_file> <output_file>
-     \`\`\`
+     ```bash
+     ./paranoia-encrypter.sh decrypt <source_file> <output_file>
+     ```
    - Example:
-     \`\`\`bash
-     ./script_name.sh decrypt secret.enc secret_decrypted.txt
-     \`\`\`
+     ```bash
+     ./paranoia-encrypter.sh decrypt secret.enc secret_decrypted.txt
+     ```
 
 ---
 
