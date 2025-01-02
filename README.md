@@ -101,14 +101,14 @@ This Bash script provides a secure method for encrypting and decrypting files us
 ## Example
 
 ### Encrypting a File
-\`\`\`bash
+```bash
 ./encrypt_decrypt.sh encrypt myfile.txt myfile.enc
-\`\`\`
+```
 
 ### Decrypting a File
-\`\`\`bash
+```bash
 ./encrypt_decrypt.sh decrypt myfile.enc myfile_dec.txt
-\`\`\`
+```
 
 ---
 
