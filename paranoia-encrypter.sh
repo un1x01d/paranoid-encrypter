@@ -7,11 +7,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No color
 
+# Print "Paranoia Encrypter" header with a scary slogan
 echo -e "${GREEN}"
-echo "╔══════════════════════════════════╗"
-echo "║         Paranoia Encrypter       ║"
-echo "║     Trust no one. Encrypt all.   ║"
-echo "╚══════════════════════════════════╝"
+echo "╔════════════════════════════════════════════╗"
+echo "║           Paranoia Encrypter v1.0          ║"
+echo "║    Your security ends where your trust     ║"
+echo "║             in others begins.              ║"
+echo "╚════════════════════════════════════════════╝"
 echo -e "${NC}"
 
 # Temporary file paths in shared memory

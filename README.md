@@ -1,160 +1,143 @@
 # Paranoia Encrypter
 
-Paranoia Encrypter is a collection of Bash scripts designed to provide robust encryption and decryption of files using multiple layers of security.  
-The project includes two main scripts:
-
-1. **paranoia-encrypter.sh**: Utilizes a combination of RSA, AES, and ChaCha20 algorithms for encryption.
-2. **paranoia-encrypter-gov.sh**: Employs AES-256 encryption and HMAC-SHA256 for integrity verification, aligning with government encryption standards.
+## Description
+Paranoia Encrypter is a highly secure bash-based encryption tool designed with a **Zero Trust security model** in mind. It supports encryption of both **text files** and **binary files**, with the file size limit depending on available system memory. The script leverages multiple layers of encryption using **AES-256-CBC**, **ChaCha20**, and **Camellia-256-CBC** algorithms and uses **RSA keys** for secure key management. Temporary files are securely handled in shared memory (`/dev/shm`) and shredded upon script termination to ensure no sensitive data is left behind.
 
 ---
 
 ## Features
-
-- **Multi-Layered Encryption**: Combines asymmetric (RSA) and symmetric (AES, ChaCha20) encryption for enhanced security.
-- **Government-Standard Compliance**: Implements encryption methods that adhere to government standards.
-- **Automatic Key Generation**: Generates necessary encryption keys if they do not exist.
-- **Integrity Verification**: Ensures data integrity using HMAC-SHA256.
-- **Centralized Logging Support**: Optional logging to centralized systems like rsyslog or Splunk HEC.
-
----
-
-## Prerequisites
-
-Ensure that `OpenSSL` is installed on your system.
+- **Multi-layered encryption**: Combines AES, ChaCha20, and Camellia encryption algorithms for robust data protection.
+- **RSA key pair management**: Automatically generates RSA keys for secure asymmetric encryption of symmetric keys.
+- **Binary file support**: Encrypts both text and binary files, with file size limited by system memory.
+- **Secure temporary file handling**: Uses shared memory (`/dev/shm`) for temporary files and securely deletes them with `shred`.
+- **Time tracking**: Displays encryption/decryption start and end times along with the elapsed time.
+- **Failsafe cleanup**: Implements a trap to clean up temporary files upon script interruption or termination.
 
 ---
 
 ## Usage
-
-### General Syntax
-
-```bash
-./script.sh <mode> [arguments] [options]
-```
-
-### Modes
-
-| **Mode**    | **Description**                                                |
-|-------------|----------------------------------------------------------------|
-| `encrypt`   | Encrypt a file and generate an HMAC for integrity verification. |
-| `decrypt`   | Decrypt a file and verify its integrity using the HMAC.         |
-
----
-
-## Options
-
-| **Option**             | **Description**                                                      |
-|------------------------|----------------------------------------------------------------------|
-| `--central-logging`     | Enable centralized logging (rsyslog or Splunk).                     |
-| `--splunk-url <URL>`    | Splunk HEC endpoint for centralized logging (requires `--splunk-token`). |
-| `--splunk-token <TOKEN>`| Splunk HEC token for authentication.                                |
-
----
-
-## 1. paranoia-encrypter.sh
+Run the script with the following commands:
 
 ### Encryption
-
 ```bash
-./paranoia-encrypter.sh encrypt <source_file> <output_file> [options]
+./paranoia_encrypter.sh encrypt <source_file> <output_file>
 ```
-
-- `<source_file>`: Path to the plaintext file to be encrypted.
-- `<output_file>`: Path where the encrypted output will be stored.
-
-**Example:**
-
-```bash
-./paranoia-encrypter.sh encrypt plaintext.txt encrypted_output
-```
+- **`<source_file>`**: Path to the text or binary file you want to encrypt.
+- **`<output_file>`**: Path to save the encrypted output file.
 
 ### Decryption
-
 ```bash
-./paranoia-encrypter.sh decrypt <encrypted_file> <output_file> [options]
+./paranoia_encrypter.sh decrypt <source_file> <output_file>
+```
+- **`<source_file>`**: Path to the encrypted file.
+- **`<output_file>`**: Path to save the decrypted output file.
+
+---
+
+## Example
+### Encrypting a text file
+```bash
+./paranoia_encrypter.sh encrypt secret.txt encrypted_secret.bin
 ```
 
-- `<encrypted_file>`: Path to the encrypted file.
-- `<output_file>`: Path where the decrypted output will be stored.
-
-**Example:**
-
+### Encrypting a binary file
 ```bash
-./paranoia-encrypter.sh decrypt encrypted_output decrypted.txt
+./paranoia_encrypter.sh encrypt image.png encrypted_image.bin
+```
+
+### Decrypting a file
+```bash
+./paranoia_encrypter.sh decrypt encrypted_secret.bin decrypted_secret.txt
+```
+
+**Output:**
+```
+Encryption started at Mon Jan 1 12:00:00 UTC 2025
+Generating RSA keys...
+Encryption completed at Mon Jan 1 12:02:00 UTC 2025
+Elapsed time: 2 minutes
+Output file: encrypted_secret.bin
+AES Password: <random_generated_password>
+ChaCha20 Password: <random_generated_password>
+Camellia Password: <random_generated_password>
+Private Key Path: /path/to/private_key.pem
+Public Key Path: /path/to/public_key.pem
 ```
 
 ---
 
-## 2. paranoia-encrypter-gov.sh
+## Why Paranoia Encrypter Aligns with Zero Trust Security
 
-### Encryption
+### 1. **Assume Breach Mentality**
+The Zero Trust model operates under the assumption that breaches can and will happen. Paranoia Encrypter addresses this by:
+- Encrypting all sensitive data using robust encryption algorithms.
+- Ensuring that even if temporary files are accessed, they are securely shredded after use.
 
-```bash
-./paranoia-encrypter-gov.sh encrypt <source_file> <output_file_base> [options]
-```
+### 2. **Least Privilege Principle**
+Temporary files and encryption keys are stored in shared memory (`/dev/shm`), reducing the potential attack surface. Only the necessary files are created during runtime and securely destroyed upon script termination.
 
-- `<source_file>`: Path to the plaintext file to be encrypted.
-- `<output_file_base>`: Base name for output files (e.g., `encrypted_data`).
+### 3. **Multi-Layered Security**
+The script uses multiple encryption algorithms sequentially (AES, ChaCha20, and Camellia), making it significantly harder for attackers to decrypt data even if one layer is compromised.
 
-**Example:**
+### 4. **Secure Key Management**
+By using RSA for encrypting symmetric keys, Paranoia Encrypter ensures that the encryption keys themselves are protected. Even if an attacker gains access to encrypted data, they would still need the private RSA key to decrypt the symmetric keys.
 
-```bash
-./paranoia-encrypter-gov.sh encrypt plaintext.txt encrypted_data
-```
-
-This will produce `encrypted_data.data` and `encrypted_data.hmac`.
-
-### Decryption
-
-```bash
-./paranoia-encrypter-gov.sh decrypt <encrypted_file> <hmac_file> <output_file> <symmetric_key> [options]
-```
-
-- `<encrypted_file>`: Path to the encrypted `.data` file.
-- `<hmac_file>`: Path to the `.hmac` file for integrity verification.
-- `<output_file>`: Path where the decrypted output will be stored.
-- `<symmetric_key>`: The symmetric key used for decryption.
-
-**Example:**
-
-```bash
-./paranoia-encrypter-gov.sh decrypt encrypted_data.data encrypted_data.hmac decrypted.txt your-symmetric-key
-```
+### 5. **Secure Temporary File Handling**
+Temporary files containing sensitive information are stored in volatile memory (`/dev/shm`) and shredded upon script termination, minimizing the risk of sensitive data being left on disk.
 
 ---
 
-## Logging
-
-To enable centralized logging, use the `--central-logging` option.  
-For Splunk integration, provide the `--splunk-url` and `--splunk-token`.
-
-**Example:**
-
-```bash
-./paranoia-encrypter-gov.sh encrypt plaintext.txt encrypted_data --central-logging --splunk-url "https://splunk-hec-url:8088" --splunk-token "your-token"
-```
+## Benefits Summary
+| Feature                | Zero Trust Principle     | Benefit                                  |
+|------------------------|--------------------------|------------------------------------------|
+| Multi-layered encryption | Assume Breach            | Enhances security against data leaks     |
+| Secure key management    | Least Privilege          | Protects encryption keys                |
+| Temporary file handling  | Secure All Access        | Minimizes risk of data exposure         |
+| Failsafe cleanup         | Continuous Verification  | Ensures no leftover sensitive data      |
 
 ---
 
-## Security Considerations
-
-- **Key Management**: Ensure that private keys and symmetric keys are stored securely.
-- **Data Integrity**: Always verify HMACs during decryption to confirm data integrity.
-- **Access Control**: Restrict access to the scripts and keys to authorized personnel only.
+## System Requirements
+- Bash 4.0 or higher
+- OpenSSL
+- Sufficient system memory to handle large files in shared memory (`/dev/shm`)
 
 ---
 
 ## License
+MIT License
 
-This project is licensed under the MIT License.
+```
+MIT License
+
+Copyright (c) 2025 Paranoia Encrypter Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 
-## Acknowledgments
-
-Special thanks to the contributors of the Paranoia Encrypter project.
+## Contributions
+Contributions are welcome! Please submit a pull request with your proposed changes, and ensure your code is well-documented and follows best practices.
 
 ---
 
-For more details, visit the [Paranoia Encrypter GitHub repository](https://github.com/un1x01d/paranoid-encrypter).
+## Disclaimer
+Paranoia Encrypter is provided as-is with no warranties. Users are responsible for ensuring the security of their own systems and data. Always test the script in a safe environment before using it in production.
 
