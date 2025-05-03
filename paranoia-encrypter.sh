@@ -1,37 +1,33 @@
 #!/bin/bash
 
-
 # Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No color
 
-# Print "Paranoia Encrypter" header with a scary slogan
 echo -e "${GREEN}"
 echo "╔════════════════════════════════════════════╗"
-echo "║           Paranoia Encrypter v1.0          ║"
+echo "║           Paranoia Encrypter v2.6          ║"
 echo "║    Your security ends where your trust     ║"
 echo "║             in others begins.              ║"
 echo "╚════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Temporary file paths in shared memory
-TEMP_FILES=("/dev/shm/symmetric_key" "/dev/shm/encrypted_key" "/dev/shm/encrypted_data")
-
-# Function to securely clean up temporary files
-secure_cleanup() {
-    for file in "${TEMP_FILES[@]}"; do
-        if [[ -f "$file" ]]; then
-            shred -u "$file" >/dev/null 2>&1
-        fi
-    done
+# Cross-platform base64 (no newlines)
+b64_noline() {
+    if base64 --help 2>&1 | grep -q -- '-w'; then
+        base64 -w0
+    else
+        base64 | tr -d '\n'
+    fi
 }
 
-# Trap to handle script interruption or termination
-trap secure_cleanup EXIT SIGINT SIGTERM
+# Triple base64 encode using compatible base64
+triple_base64_encode() {
+    echo -n "$1" | b64_noline | b64_noline | b64_noline
+}
 
-# Function to generate RSA keys if they do not exist
 generate_rsa_keys() {
     if [[ ! -f private_key.pem || ! -f public_key.pem ]]; then
         echo -e "${YELLOW}Generating RSA keys...${NC}"
@@ -42,7 +38,6 @@ generate_rsa_keys() {
     fi
 }
 
-# Main encryption function
 encrypt() {
     local source_file="$1"
     local output_file="$2"
@@ -54,38 +49,39 @@ encrypt() {
 
     echo -e "${GREEN}Encryption started at $(date)${NC}"
     SECONDS=0
-
     generate_rsa_keys
 
-    # Generate random passwords
-    local aes_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
-    local chacha_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
-    local camellia_password=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
+    local aes_plain=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
+    local chacha_plain=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
+    local camellia_plain=$(tr -dc 'A-Za-z0-9!@#$%^&*()_+=-' </dev/urandom | head -c 32)
 
-    # Use shared memory for temporary files
-    openssl rand 32 >"${TEMP_FILES[0]}"
-    openssl pkeyutl -encrypt -inkey public_key.pem -pubin -in "${TEMP_FILES[0]}" -out "${TEMP_FILES[1]}"
+    local symmetric_key=$(openssl rand 32)
+    local encrypted_key=$(echo -n "$symmetric_key" | openssl pkeyutl -encrypt -pubin -inkey public_key.pem | b64_noline)
 
-    # Encrypt the file sequentially
-    openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"$aes_password" -in "$source_file" 2>/dev/null | \
-        openssl enc -chacha20 -pbkdf2 -salt -pass pass:"$chacha_password" 2>/dev/null | \
-        openssl enc -camellia-256-cbc -pbkdf2 -salt -pass pass:"$camellia_password" 2>/dev/null >"${TEMP_FILES[2]}"
+    encrypted_data=$(openssl enc -aes-256-cbc -pbkdf2 -md sha512 -salt -pass pass:"$aes_plain" -in "$source_file" 2>/dev/null | \
+        openssl enc -chacha20 -pbkdf2 -md sha512 -salt -pass pass:"$chacha_plain" 2>/dev/null | \
+        openssl enc -camellia-256-cbc -pbkdf2 -md sha512 -salt -pass pass:"$camellia_plain" 2>/dev/null | b64_noline)
 
-    # Combine encrypted key and data into the output file
-    cat "${TEMP_FILES[1]}" "${TEMP_FILES[2]}" >"$output_file"
+    echo "$encrypted_key" > "$output_file"
+    echo "::" >> "$output_file"
+    echo "$encrypted_data" >> "$output_file"
 
     local duration=$SECONDS
     echo -e "${GREEN}Encryption completed at $(date)${NC}"
     echo -e "${GREEN}Elapsed time: $(($duration / 60)) minutes and $(($duration % 60)) seconds${NC}"
     echo -e "${YELLOW}Output file: $output_file${NC}"
-    echo -e "${YELLOW}AES Password: $aes_password${NC}"
-    echo -e "${YELLOW}ChaCha20 Password: $chacha_password${NC}"
-    echo -e "${YELLOW}Camellia Password: $camellia_password${NC}"
     echo -e "${YELLOW}Private Key Path: $(realpath private_key.pem)${NC}"
     echo -e "${YELLOW}Public Key Path: $(realpath public_key.pem)${NC}"
+
+    echo -e "${YELLOW}Store these RAW passwords securely for decryption:${NC}"
+    echo -e "${NC}AES password: $aes_plain"
+    echo -e "ChaCha20 password: $chacha_plain"
+    echo -e "Camellia password: $camellia_plain${NC}"
+
+    aes_plain=""; chacha_plain=""; camellia_plain=""
+    unset aes_plain chacha_plain camellia_plain
 }
 
-# Main decryption function
 decrypt() {
     local source_file="$1"
     local output_file="$2"
@@ -98,50 +94,50 @@ decrypt() {
     echo -e "${GREEN}Decryption started at $(date)${NC}"
     SECONDS=0
 
-    read -sp "Enter AES password: " aes_password
-    echo
-    read -sp "Enter ChaCha20 password: " chacha_password
-    echo
-    read -sp "Enter Camellia password: " camellia_password
-    echo
+    local encrypted_key=$(head -n 1 "$source_file")
+    local encrypted_data=$(tail -n +3 "$source_file" | tr -d '\n')
 
-    # Use shared memory for temporary files
-    head -c 512 "$source_file" >"${TEMP_FILES[1]}"
-    tail -c +513 "$source_file" >"${TEMP_FILES[2]}"
+    echo -e "${YELLOW}Enter RAW passwords for decryption:${NC}"
+    read -rsp "AES password: " AES; echo
+    read -rsp "ChaCha20 password: " CHACHA; echo
+    read -rsp "Camellia password: " CAMELLIA; echo
 
-    openssl pkeyutl -decrypt -inkey private_key.pem -in "${TEMP_FILES[1]}" -out "${TEMP_FILES[0]}"
-
-    if [[ $? -ne 0 ]]; then
-        echo -e "${RED}Error: Failed to decrypt the symmetric key.${NC}"
-        secure_cleanup
+    if [[ -z "$AES" || -z "$CHACHA" || -z "$CAMELLIA" ]]; then
+        echo -e "${RED}Invalid input: one or more passwords are empty.${NC}"
         exit 1
     fi
 
-    cat "${TEMP_FILES[2]}" | \
-        openssl enc -d -camellia-256-cbc -pbkdf2 -salt -pass pass:"$camellia_password" 2>/dev/null | \
-        openssl enc -d -chacha20 -pbkdf2 -salt -pass pass:"$chacha_password" 2>/dev/null | \
-        openssl enc -d -aes-256-cbc -pbkdf2 -salt -pass pass:"$aes_password" -out "$output_file" 2>/dev/null
-
-    if [[ $? -ne 0 ]]; then
-        echo -e "${RED}Error: Failed to decrypt the data. Please check passwords.${NC}"
-        secure_cleanup
+    local symmetric_key=$(echo "$encrypted_key" | base64 -d | openssl pkeyutl -decrypt -inkey private_key.pem 2>/dev/null)
+    if [[ $? -ne 0 || -z "$symmetric_key" ]]; then
+        echo -e "${RED}Error: Failed to decrypt the symmetric key with RSA.${NC}"
         exit 1
     fi
 
-    secure_cleanup
+    echo "$encrypted_data" | base64 -d | \
+        openssl enc -d -camellia-256-cbc -pbkdf2 -md sha512 -salt -pass pass:"$CAMELLIA" 2>/dev/null | \
+        openssl enc -d -chacha20 -pbkdf2 -md sha512 -salt -pass pass:"$CHACHA" 2>/dev/null | \
+        openssl enc -d -aes-256-cbc -pbkdf2 -md sha512 -salt -pass pass:"$AES" -out "$output_file" 2>/dev/null
+
+    if [[ $? -ne 0 ]]; then
+        echo -e "${RED}Error: Decryption failed. Check passwords or file integrity.${NC}"
+        exit 1
+    fi
+
     local duration=$SECONDS
     echo -e "${GREEN}Decryption completed at $(date)${NC}"
     echo -e "${GREEN}Elapsed time: $(($duration / 60)) minutes and $(($duration % 60)) seconds${NC}"
     echo -e "${YELLOW}Output file: $output_file${NC}"
+
+    AES=""; CHACHA=""; CAMELLIA=""
+    unset AES CHACHA CAMELLIA
 }
 
-# Main function
 main() {
-    if [[ $# -lt 3 ]]; then
-        echo -e "${RED}Usage:${NC}"
+    if [[ $# -lt 1 ]]; then
+        echo -e "${YELLOW}Usage:${NC}"
         echo "  $0 encrypt <source_file> <output_file>"
         echo "  $0 decrypt <source_file> <output_file>"
-        exit 1
+        exit 0
     fi
 
     local mode="$1"
@@ -157,11 +153,13 @@ main() {
             ;;
         *)
             echo -e "${RED}Unknown mode: $mode${NC}"
+            echo "Usage:"
+            echo "  $0 encrypt <source_file> <output_file>"
+            echo "  $0 decrypt <source_file> <output_file>"
             exit 1
             ;;
     esac
 }
 
-# Invoke the main function
 main "$@"
 
