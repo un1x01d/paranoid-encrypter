@@ -22,38 +22,67 @@ Paranoia Encrypter is a memory-only, multi-layer encryption utility built for re
 ### 🔒 Encrypt
 
 ```bash
-./paranoia-encrypter encrypt source_file.txt encrypted_output.enc
+./paranoia-encrypter encrypt secret.txt locked.enc
 ```
 
-- Generates fresh RSA keys in memory
-- Encrypts the input in 3 layers
-- Outputs:
-  - Encrypted symmetric key (base64)
-  - Encrypted payload (base64)
-  - AES / ChaCha / Camellia passwords
-  - RSA private key (pasted manually for recovery)
+Terminal Output:
+```text
+Encrypting...
+Encryption done in 0m 2s
+Encrypted saved to: locked.enc
+Store these passwords securely:
+AES: 6UbwE9Yq6vKsFXgQ...
+ChaCha: cT4yXDQ0xgjMZYDz...
+Camellia: QljWivh0biwCDtEr...
+Paste this private key when decrypting:
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhki...
+-----END PRIVATE KEY-----
+```
 
 ---
 
 ### 🔓 Decrypt
 
 ```bash
-./paranoia-encrypter decrypt encrypted_output.enc restored_file.txt
+./paranoia-encrypter decrypt locked.enc restored.txt
 ```
 
-- Requires:
-  - The original AES / ChaCha / Camellia passwords
-  - The corresponding RSA private key
-- Outputs decrypted content to the destination file
+Terminal Prompts:
+```text
+AES password: ********
+ChaCha20 password: ********
+Camellia password: ********
+Paste the private key (end with Ctrl-D):
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhki...
+-----END PRIVATE KEY-----
+
+Decryption done in 0m 1s
+Decrypted saved to: restored.txt
+```
+
+---
+
+## 📌 Example Workflow
+
+```bash
+# Encrypt a file
+./paranoia-encrypter encrypt report.pdf encrypted.b64
+
+# Save the printed passwords + private key (manually)
+# Restore the file later
+./paranoia-encrypter decrypt encrypted.b64 decrypted.pdf
+```
 
 ---
 
 ## 🧠 Simulation Notes
 
-- Built for **controlled lab use**, CTFs, red team drops, or secure transport
-- Operates entirely in RAM
-- Leaves **no residual trace** of encryption keys or decrypted data
-- Safe to embed in ephemeral containers, RAM disks, or live shells
+- Designed for **controlled lab use**, red/blue team scenarios, or ephemeral storage
+- Encryption/decryption runs entirely in memory
+- Nothing is saved except the input/output files you specify
+- Perfect for scenarios requiring **zero residual evidence**
 
 ---
 
