@@ -1,120 +1,116 @@
-# 🧩 Micro DNS – Minimal UDP DNS Resolver
+# 🛡️ Paranoia Encrypter v5.3
 
-A lightweight, user-level DNS resolver in a single Go binary. It resolves `A`, `CNAME`, `TXT`, and `MX` records from a local zone file, supports hot reloading, and optionally falls back to external DNS servers (UDP-only). Logs all queries and responses to stdout.
+> **In-memory. 512-bit entropy. Unbreakable.**
 
----
-
-## ✨ Features
-
-- ✅ Prebuilt binary included (`dnsresolver`)
-- ✅ Fully user-space (no root required)
-- ✅ DNS zone file syntax (like BIND)
-- ✅ Supports `A`, `CNAME`, `TXT`, `MX` records
-- ✅ Logs all queries and responses
-- ✅ Hot reloads zone file on change
-- ✅ Optional UDP fallback (e.g. `8.8.8.8`)
-- ✅ CLI flags override `config.yaml`
-- ✅ Docker-ready, supports `PORT` env var
+Paranoia Encrypter is a multi-layered encryption tool built with native Linux/macOS utilities. It encrypts files or directories using three modern ciphers in sequence, and stores only base64-encoded ciphertext and an RSA-encrypted symmetric key. All secrets are kept in memory and discarded securely after use.
 
 ---
 
-## 📁 Key Files
+## ⚙️ Features
 
-| File           | Purpose                                       |
-|----------------|-----------------------------------------------|
-| `dnsresolver`  | Prebuilt binary resolver                      |
-| `Dockerfile`   | Builds minimal Alpine container               |
-| `config.yaml`  | Resolver configuration (port, zone file, etc) |
-| `zones.txt`    | DNS records in BIND-style format              |
-| `src/main.go`  | Go source code for the resolver               |
-| `README.md`    | Project overview and instructions             |
+- 🔐 3-layer encryption using:
+  - AES-256-CBC  
+  - ARIA-256-CFB  
+  - Camellia-256-CBC  
+- 🔑 4096-bit RSA keypair for securing symmetric keys  
+- 🧠 All data handled in-memory; no temp files except `.dec.blob`  
+- 🗃 Supports encrypting both files and directories  
+- 🗝 Passwords shown **once only**, self-clearing after 30 seconds  
+- 💥 8 failed decryption attempts = auto file deletion  
 
 ---
 
-## ⚙️ Configuration
+## 📦 Requirements
 
-### `config.yaml`
-```yaml
-listen_port: "1053"
-hosts_file: "zones.txt"
-log_level: "info"
-poll_freq: 5
-fallback_dns: "8.8.8.8:53"
-```
-
-### `zones.txt`
-```text
-example.local.    300 IN A     127.0.0.1
-router.home.      300 IN A     192.168.1.1
-alias.local.      300 IN CNAME example.local.
-text.example.     300 IN TXT   "This is a test TXT record"
-mail.example.     300 IN MX    10 mailserver.local.
-```
+- `openssl`  
+- `base64`  
+- `tar`  
+- macOS or Linux  
 
 ---
 
 ## 🚀 Usage
 
-### Run Prebuilt Binary
-```bash
-./dnsresolver
+### Encrypt
+
+```
+./paranoia.sh encrypt <source_path> <output_file>
 ```
 
-### Run with CLI Overrides
-```bash
-./dnsresolver --port 1053 --zones zones.txt --fallback 1.1.1.1:53 --poll 10
+### Decrypt
+
 ```
-
----
-
-## 🐳 Docker Support
-
-### Build Docker Image
-```bash
-docker build -t micro-dns .
-```
-
-### Run with Default Port (1053)
-```bash
-docker run -p 1053:1053/udp --rm micro-dns
-```
-
-### Run with Custom Port via `PORT` Environment Variable
-```bash
-docker run -e PORT=5300 -p 5300:5300/udp --rm micro-dns
+./paranoia.sh decrypt <encrypted_file> <output_path>
 ```
 
 ---
 
-## 🧪 Testing
+## 🧪 Example Encryption Report
 
-### With `dig` (recommended)
-```bash
-dig @127.0.0.1 -p 1053 example.local A
-dig @127.0.0.1 -p 1053 alias.local CNAME
-dig @127.0.0.1 -p 1053 text.example TXT
-dig @127.0.0.1 -p 1053 mail.example MX
+```
+./paranoia.sh encrypt ./classified_docs/ safe_output.penc
 ```
 
-### With `nslookup` (only works on port 53)
-```bash
-sudo ./dnsresolver --port 53
-nslookup example.local 127.0.0.1
+**Terminal Output:**
+```
+╔════════════════════════════════════════════╗
+║           Paranoia Encrypter v5.3          ║
+║   In-memory. 512-bit entropy. Unbreakable. ║
+╚════════════════════════════════════════════╝
+
+Generating RSA keys...
+
+Encryption started at Mon Jun  9 12:03:48 EDT 2025
+Encryption completed at Mon Jun  9 12:03:49 EDT 2025
+Elapsed time: 0m 1s
+Output file: safe_output.penc
+Private Key: /home/user/priv.pem
+Public Key:  /home/user/pub.pem
+
+Store these passwords securely:
+AES-256-CBC password:      zApH2wVNMEjxlBSGBdrtQo73W8qMYyzEk9eqRQwqI6ONIf5RhU3YzPHCgZom7K0RZsSJMgz6zH8ZbGhCcjWmPtRx7W6Ow4zoR9AWX7RIdMgRU1xN1YMpK4H5H6fnG4wX
+ARIA-256-CFB password:     xbBDqLvpFLntBaAvMk0S0H9MpKZOTX3LUXKkXPIPOR3E2bG4GEQ1AKgRtXBzuYr7gczVEbZLYOuzpqTcXmhZGr2uBkwpI4U3AC9kwj5vazCLmI7OW5DzrRSpY0Gdc8iW
+Camellia-256-CBC password: 3P8h8rFQszkCu57WuyzDjPKGvhsYltBA1YksZPYmO4nR8YAkYQ2DbHkVY7m7ak0NvXiz8fTqTzLRAEMLzPtvvZns0e3w5d8Am6O7ex9lDoUIghgSnB2YF1zgxEYZ6KkQ
+
+You have 30 seconds to copy these passwords.
+30...
+```
+
+> ⚠️ **Passwords are not recoverable.** They are shown once and erased from memory. Copy them securely.
+
+---
+
+## 📁 Output Structure
+
+Encrypted file format:
+```
+<base64-encrypted symmetric key>
+::
+<base64-encrypted data blob>
 ```
 
 ---
 
-## ⚙️ Optional: Build From Source
+## 🧹 Cleanup
 
-```bash
-cd src
-go mod tidy
-go build -o ../dnsresolver main.go
+To remove files securely using native tools:
+
+```
+# macOS
+rm -P <file>
+
+# Linux fallback
+rm -f <file>
+```
+
+To regenerate RSA keys:
+
+```
+rm priv.pem pub.pem
 ```
 
 ---
 
 ## 📜 License
 
-MIT — do whatever you want.
-
+MIT — Use at your own paranoia level.
